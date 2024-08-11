@@ -1,0 +1,16 @@
+/* Theme for Global Biodiversity Information Dashboard */
+
+.bslib-page-sidebar>.navbar{
+
+    background-color: #bfc2c2;
+    color: #FFFFFF;
+    border-bottom: 1px solid #333;
+}
+
+.bslib-sidebar-layout>.main{
+    background-color: #d9dbdb;
+}
+.bslib-sidebar-layout>.sidebar{
+    background-color: #b4b2b2;
+    color: #FFFFFF;
+}
