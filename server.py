@@ -6,7 +6,7 @@ from PIL import Image
 from io import BytesIO
 import matplotlib.pyplot as plt
 import folium
-from modules.data import import_data
+from modules.data import import_data, import_image
 
 
 def server(input, output, session):
@@ -68,13 +68,14 @@ def server(input, output, session):
             selected_species = input.species()
             search_criteria = input.search_criteria()
             data = filtered_data()[0]
+            images_data = import_image()
 
             if selected_species:
                 try:
                     # Filter the data based on the selected species
                     selected_species = escape_sql_string(selected_species)
                     selected_data = duckdb.sql(
-                        f""" SELECT occurrenceID FROM data
+                        f""" SELECT id FROM data
                         WHERE {search_criteria} = '{selected_species}'
                         """
                     ).to_df()
@@ -82,26 +83,67 @@ def server(input, output, session):
                     if selected_data.empty:
                         raise IndexError("No data found for the selected species")
 
-                    observation_id = (
-                        selected_data["occurrenceID"].iloc[0].split("/")[-1]
-                    )
-                    imageUrl = (
-                        f"https://observation.org/media/photo/{observation_id}.jpg"
-                    )
+                    observation_ids = selected_data["id"]
 
-                    # Send a GET request to fetch the image
-                    response = requests.get(imageUrl)
-                    response.raise_for_status()  # Raise an error for bad status codes
+                    imageUrl = None
+                    tmp_file = None
+                    for observation_id in observation_ids:
+                        try:
+                            identifiers = duckdb.sql(
+                                f""" SELECT Identifier FROM images_data
+                                WHERE CoreId = '{observation_id}'
+                                """
+                            ).to_df()
 
-                    img = Image.open(BytesIO(response.content))
+                            for i in range(len(identifiers)):
+                                try:
+                                    print(
+                                        f"Attempting to load image {i+1}/{len(identifiers)} for observation ID {observation_id}"
+                                    )
+                                    imageUrl = (
+                                        identifiers.loc[i]["Identifier"][:-1] + ".jpg"
+                                    )
 
-                    # Resize the image to a smaller size
-                    max_size = (400, 400)  # Maximum size for width and height
-                    img.thumbnail(max_size, Image.LANCZOS)
+                                    # Send a GET request to fetch the image
+                                    response = requests.get(imageUrl)
+                                    response.raise_for_status()  # Raise an error for bad status codes
 
-                    # Save the image to a temporary file
-                    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-                    img.save(tmp_file.name)
+                                    img = Image.open(BytesIO(response.content))
+                                    # Resize the image to a smaller size
+                                    max_size = (
+                                        400,
+                                        400,
+                                    )  # Maximum size for width and height
+                                    img.thumbnail(max_size, Image.LANCZOS)
+
+                                    # Save the image to a temporary file
+                                    tmp_file = tempfile.NamedTemporaryFile(
+                                        delete=False, suffix=".jpg"
+                                    )
+                                    img.save(tmp_file.name)
+
+                                    break  # Exit loop if the image is successfully fetched
+                                except (
+                                    requests.exceptions.RequestException,
+                                    IndexError,
+                                    Image.UnidentifiedImageError,
+                                ) as e:
+                                    print(f"Error loading image from {imageUrl}: {e}")
+                                    imageUrl = None  # Continue to the next identifier
+
+                            if imageUrl:
+                                break  # Exit outer loop if a valid image is found
+
+                        except Exception as e:
+                            print(
+                                f"Error processing observation ID {observation_id}: {e}"
+                            )
+                            continue  # Continue to the next observation ID
+
+                    if not imageUrl or tmp_file is None:
+                        raise IndexError(
+                            "No valid image found for the selected species"
+                        )
 
                     # Return the path to the image
                     return {"src": tmp_file.name}
@@ -213,7 +255,7 @@ def server(input, output, session):
                             <p class="card-text"><strong>Last known Location: </strong>{locality}</p>
                             <p class="card-text"><strong>Latidude: </strong>{latitude}</p>
                             <p class="card-text"><strong>Longitude: </strong>{longitude}</p>
-                        </div>
+                        </d
                     </div>
                     """
 
