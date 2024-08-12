@@ -61,6 +61,9 @@ def server(input, output, session):
     @output
     @render.image
     def display_image():
+        def escape_sql_string(value):
+            return value.replace("'", "''")
+
         if submit_flag():  # Check if the submit flag is set
             selected_species = input.species()
             search_criteria = input.search_criteria()
@@ -69,6 +72,7 @@ def server(input, output, session):
             if selected_species:
                 try:
                     # Filter the data based on the selected species
+                    selected_species = escape_sql_string(selected_species)
                     selected_data = duckdb.sql(
                         f""" SELECT occurrenceID FROM data
                         WHERE {search_criteria} = '{selected_species}'
@@ -116,6 +120,9 @@ def server(input, output, session):
     @output
     @render.text
     def species_summary():
+        def escape_sql_string(value):
+            return value.replace("'", "''")
+
         if submit_flag():
             selected_species = input.species()
             search_criteria = input.search_criteria()
@@ -123,6 +130,7 @@ def server(input, output, session):
 
             if selected_species:
                 # Filter the data based on the selected species
+                selected_species = escape_sql_string(selected_species)
                 selected_data = duckdb.sql(
                     f""" SELECT continent, country, stateProvince, locality, 
                     latitudeDecimal, longitudeDecimal , eventDate, eventTime,
@@ -148,9 +156,10 @@ def server(input, output, session):
                         search_str = "Scientific Name"
 
                     # Generate HTML content for the card
+                    species_name = input.species()
                     summary_html = f"""
                     <div class="card">
-                        <div class="card-header"><strong>{search_str}:</strong> {selected_species}</div>
+                        <div class="card-header"><strong>{search_str}:</strong> {species_name }</div>
                         <div class="card-body">
                             <p class="card-text"><strong>Continent:</strong> {continent}</p>
                             <p class="card-text"><strong>Country:</strong> {country}</p>
@@ -168,12 +177,16 @@ def server(input, output, session):
     @output
     @render.ui
     def map():
+        def escape_sql_string(value):
+            return value.replace("'", "''")
+
         if submit_flag():
             selected_species = input.species()
             search_criteria = input.search_criteria()
             data = filtered_data()[0]
 
             if selected_species:
+                selected_species = escape_sql_string(selected_species)
                 selected_data = duckdb.sql(
                     f""" SELECT latitudeDecimal, longitudeDecimal, locality FROM data
                     WHERE {search_criteria} = '{selected_species}'
@@ -192,10 +205,11 @@ def server(input, output, session):
                     )
 
                     # Create a Bootstrap-styled card for the popup
+                    species_name = input.species()
                     popup_content = f"""
                     <div class="card" style="width: 30rem;">
                         <div class="card-body">
-                        <h3><strong>{selected_species}</strong></h3>
+                        <h3><strong>{species_name }</strong></h3>
                             <p class="card-text"><strong>Last known Location: </strong>{locality}</p>
                             <p class="card-text"><strong>Latidude: </strong>{latitude}</p>
                             <p class="card-text"><strong>Longitude: </strong>{longitude}</p>
